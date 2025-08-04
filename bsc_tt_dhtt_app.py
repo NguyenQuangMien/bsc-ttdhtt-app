@@ -1,94 +1,109 @@
 
 import streamlit as st
+import pandas as pd
+import datetime
+import matplotlib.pyplot as plt
+from io import BytesIO
 
-st.set_page_config(page_title="Tính điểm BSC - TTĐHTT", layout="wide")
+st.set_page_config(page_title="BSC TTĐHTT", layout="wide")
 
-st.title("📊 Ứng dụng tính điểm BSC hàng tháng - TTĐHTT")
-st.markdown("### VNPT Yên Bái - Từ tháng 07/2025")
+# ========== ĐỌC DANH SÁCH NHÂN VIÊN TỪ FILE EXCEL ==========
+@st.cache_data
+def load_danh_sach_nhan_vien():
+    try:
+        df_nv = pd.read_excel("T7_Mẫu_Giao KH BSC Cá nhân T7.2025 - ĐHTT.xlsx", sheet_name=0)
+        df_nv = df_nv[["Tổ công tác", "Họ và tên"]].dropna()
+        return df_nv
+    except:
+        return pd.DataFrame({"Tổ công tác": [], "Họ và tên": []})
 
-with st.expander("📝 Hướng dẫn nhập liệu"):
-    st.markdown("""
-    **CS1 – Chất lượng phục vụ (30%)**
-    - T1: Thời gian mất liên lạc BTS (phút)
-    - T2: Thời gian mất liên lạc NodeB (phút)
-    - T3: Thời gian mất liên lạc eNodeB (phút)
-    - S1 → S4: Sự cố mức 1 đến mức 4
+ds_nv_df = load_danh_sach_nhan_vien()
+to_list = sorted(ds_nv_df["Tổ công tác"].unique())
 
-    **CS2 – QoS / QoE (30%)**
-    - FBB / MyTV / MBB QoS (%)
-    - FBB / MyTV / MBB QoE (%)
+# ========== NHẬP DỮ LIỆU ==========
+st.title("📊 Tính điểm BSC - TTĐHTT VNPT Yên Bái")
 
-    **CS3 – Tối ưu OLT (20%)**
-    - Tổng số OLT giao
-    - Số OLT đã tối ưu
+col1, col2 = st.columns(2)
+with col1:
+    thang = st.date_input("🗓️ Tháng", datetime.date.today())
+    to_cong_tac = st.selectbox("🧭 Tổ công tác", to_list)
+    nhan_vien_ds = ds_nv_df[ds_nv_df["Tổ công tác"] == to_cong_tac]["Họ và tên"].tolist()
+    ho_ten = st.selectbox("👤 Họ và tên", nhan_vien_ds)
+with col2:
+    bts = st.number_input("⛔ BTS (phút)", 0.0)
+    nodeb = st.number_input("🔗 NodeB (phút)", 0.0)
+    enodeb = st.number_input("🌐 eNodeB (phút)", 0.0)
+    sc1 = st.number_input("🚨 SC mức 1", 0)
+    sc2 = st.number_input("⚠️ SC mức 2", 0)
+    sc3 = st.number_input("⚠️ SC mức 3", 0)
 
-    **CS4 – Xử lý PAKH (20%)**
-    - Tổng phiếu
-    - Phiếu đạt yêu cầu
-    """)
+# ========== TÍNH TOÁN ==========
+def tinh_diem(bts, nodeb, enodeb, sc1, sc2, sc3):
+    diem = 100
+    diem -= bts * 0.1
+    diem -= nodeb * 0.05
+    diem -= enodeb * 0.05
+    diem -= sc1 * 5
+    diem -= sc2 * 2
+    diem -= sc3 * 1
+    return round(max(diem, 0), 2)
 
-# === Nhập dữ liệu ===
-st.sidebar.header("📥 Nhập liệu")
+data_bsc = []
 
-# CS1
-st.sidebar.subheader("CS1 - Mất liên lạc & sự cố")
-T1 = st.sidebar.number_input("Thời gian mất liên lạc BTS (phút)", 0.0, 100.0, 5.0)
-T2 = st.sidebar.number_input("Thời gian mất liên lạc NodeB (phút)", 0.0, 100.0, 5.0)
-T3 = st.sidebar.number_input("Thời gian mất liên lạc eNodeB (phút)", 0.0, 100.0, 5.0)
-S1 = st.sidebar.number_input("Sự cố mức 1", 0, 100, 0)
-S2 = st.sidebar.number_input("Sự cố mức 2", 0, 100, 0)
-S3 = st.sidebar.number_input("Sự cố mức 3", 0, 100, 0)
-S4 = st.sidebar.number_input("Sự cố mức 4", 0, 100, 0)
-
-# CS2
-st.sidebar.subheader("CS2 - QoS / QoE")
-QoS_FBB = st.sidebar.slider("QoS - FBB", 0.0, 100.0, 99.0)
-QoS_MyTV = st.sidebar.slider("QoS - MyTV", 0.0, 100.0, 98.0)
-QoS_MBB = st.sidebar.slider("QoS - MBB", 0.0, 100.0, 97.0)
-QoE_FBB = st.sidebar.slider("QoE - FBB", 0.0, 100.0, 98.0)
-QoE_MyTV = st.sidebar.slider("QoE - MyTV", 0.0, 100.0, 97.0)
-QoE_MBB = st.sidebar.slider("QoE - MBB", 0.0, 100.0, 97.0)
-
-# CS3
-st.sidebar.subheader("CS3 - Tối ưu OLT")
-olt_total = st.sidebar.number_input("Tổng số OLT được giao", 1, 100, 5)
-olt_done = st.sidebar.number_input("Số OLT đã tối ưu", 0, 100, 5)
-
-# CS4
-st.sidebar.subheader("CS4 - Phiếu PAKH")
-pak_total = st.sidebar.number_input("Tổng số phiếu", 1, 1000, 15)
-pak_ok = st.sidebar.number_input("Số phiếu đạt yêu cầu", 0, 1000, 14)
-
-# === Tính điểm ===
 if st.button("✅ Tính điểm BSC"):
-    # CS1
-    time_avg = (T1 + T2 + T3) / 3
-    diem_time = 5 if time_avg <= 9 else max(0, 5 - (time_avg - 9) * 0.5)
-    tong_su_co = S1*4 + S2*3 + S3*2 + S4
-    diem_su_co = max(0, 5 - tong_su_co * 0.1)
-    diem_cs1 = round((diem_time + diem_su_co) / 2, 2)
+    diem_bsc = tinh_diem(bts, nodeb, enodeb, sc1, sc2, sc3)
+    st.success(f"🎯 Điểm BSC: {diem_bsc} điểm")
 
-    # CS2
-    diem_qos = (QoS_FBB + QoS_MyTV + QoS_MBB) / 3
-    diem_qoe = (QoE_FBB + QoE_MyTV + QoE_MBB) / 3
-    diem_cs2 = round((diem_qos + diem_qoe) / 40, 2)
+    new_data = {
+        "Tháng": thang.strftime("%Y-%m"),
+        "Tổ": to_cong_tac,
+        "Họ tên": ho_ten,
+        "BTS": bts,
+        "NodeB": nodeb,
+        "eNodeB": enodeb,
+        "SC1": sc1,
+        "SC2": sc2,
+        "SC3": sc3,
+        "Điểm BSC": diem_bsc
+    }
+    st.session_state.setdefault("data_bsc", []).append(new_data)
 
-    # CS3
-    ti_le_olt = olt_done / olt_total
-    diem_cs3 = round(ti_le_olt * 5, 2)
+# ========== HIỂN THỊ KẾT QUẢ ==========
+if "data_bsc" in st.session_state and st.session_state["data_bsc"]:
+    df_kq = pd.DataFrame(st.session_state["data_bsc"])
+    st.subheader("📋 Bảng kết quả chi tiết")
+    st.dataframe(df_kq)
 
-    # CS4
-    ti_le_pakh = pak_ok / pak_total
-    diem_cs4 = round(ti_le_pakh * 5, 2)
+    df_tb_to = df_kq.groupby(["Tháng", "Tổ"])["Điểm BSC"].mean().reset_index(name="TB tổ")
+    df_tb_donvi = df_kq.groupby("Tháng")["Điểm BSC"].mean().reset_index(name="TB đơn vị")
 
-    # Tổng điểm
-    tong_diem = round(diem_cs1 * 0.3 + diem_cs2 * 0.3 + diem_cs3 * 0.2 + diem_cs4 * 0.2, 2)
+    st.subheader("📊 Biểu đồ điểm trung bình")
+    fig, ax = plt.subplots()
+    for to in df_tb_to["Tổ"].unique():
+        df_plot = df_tb_to[df_tb_to["Tổ"] == to]
+        ax.plot(df_plot["Tháng"], df_plot["TB tổ"], marker='o', label=to)
+    ax.plot(df_tb_donvi["Tháng"], df_tb_donvi["TB đơn vị"], linestyle='--', marker='s', label="Toàn đơn vị", color="black")
+    ax.set_ylabel("Điểm")
+    ax.set_xlabel("Tháng")
+    ax.set_title("Biểu đồ điểm trung bình theo tổ và toàn đơn vị")
+    ax.legend()
+    st.pyplot(fig)
 
-    # Hiển thị kết quả
-    st.success("🎯 KẾT QUẢ ĐÁNH GIÁ BSC")
-    st.write(f"**CS1 - Chất lượng phục vụ:** {diem_cs1}/5")
-    st.write(f"**CS2 - QoS/QoE:** {diem_cs2}/5")
-    st.write(f"**CS3 - Tối ưu OLT:** {diem_cs3}/5")
-    st.write(f"**CS4 - Phiếu xử lý PAKH:** {diem_cs4}/5")
-    st.markdown(f"### 🏁 **TỔNG ĐIỂM BSC: {tong_diem} / 5.00**")
+    # Xuất file Excel
+    def convert_df():
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df_kq.to_excel(writer, index=False, sheet_name="ChiTiet")
+            df_tb_to.to_excel(writer, index=False, sheet_name="TB_Theo_To")
+            df_tb_donvi.to_excel(writer, index=False, sheet_name="TB_Don_Vi")
+        return output.getvalue()
 
+    st.download_button(
+        "📥 Tải file kết quả",
+        data=convert_df(),
+        file_name="BSC_TTĐHTT_KetQua.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+# ========== CHỨC NĂNG TƯƠNG LAI ==========
+st.markdown("🔧 **Sắp có**: Nhập liệu từ Google Sheet (gắn tự động)")
